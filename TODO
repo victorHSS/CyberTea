@@ -1,0 +1,95 @@
+Usar conhecimento de socket de redes, backdoor etc. A ideia é criar uma aplicação GUI com botões, onde cada botão executa uma ação no PC com o backdoor.  
+
+
+# instalar pacotes pip3
+	- wakeonlan
+	
+# modulos a importar
+	- platform - informações do SO
+	
+# modulos a analisar
+	- sys
+	
+###
+#    Modulos a implementar
+###
+	- ConParser - para ler arquivos .conf OK
+	- NetworkHandler - para manipular a rede OK
+	
+	
+###
+#    Servidor - Unidade de Controle
+###
+
+	Funcionalidades:
+	- Aba Desktop:
+		- Ver máquinas que estão ligadas
+	- Aba Detalhes:
+		- Informaçoes
+			- ver usuários logados no sistema
+			- ver diagnósticos do sistema: Status (Ligado, Desligado), Sistema, IP, processamento, memória
+		- Interações (botão de conectar/desconectar necessário)
+			- Ligar Máquina (wakeonlan), Desligar, Reiniciar, abrir bandeja, travar máquina
+			- listar, permitir bloquear (não abrir mais ou travar?) e matar programa
+			- bloqueio de mouse e teclado
+			- projetar tela do cliente no servidor
+			- projetar tela do servidor no cliente
+			- mensagens (permitir escolher se quer notificação, pergunta, aviso etc.)
+				- enviar avisos para o cliente (usar comando notify-send)
+				- enviar perguntas para o cliente (usar o zenity)
+			- permitir acesso remoto, criar botão para iniciar acesso remoto
+			- verificar se o sistema do cliente está atualizado e permitir atualizar
+			- instalar programas (individualmente e coletivamente)
+				- inicialmente deixar um campo para digitar o comando
+			- Enviar e receber arquivos
+		- Adicionar no menu Editar -> Configurações ou Preferências
+		- Permitir ver/alterar as configurações dos clientes
+	- Status:
+		- Manter o usuário informado sobre o que o app está fazendo
+	- Todos os PCs
+		- fazer o que já faz individualmente
+		- projetar a tela do servidor na tela dos clientes
+			- deixar uma janela não transiente e não modal com o botao de pausar, continuar, e parar. fechar eh o mesmo que parar
+			- bloquear o resto pra so aparecer minha tela
+	
+	Implementação:
+		- Fazer com que as info dos hosts fiquem em um dicionário {"Lab01": {"PC01":data}}
+
+###
+#    Cliente
+###
+
+	Deveres:
+		- Coletar informações periodicamente sobre a máquina
+			- Uso processador, memória (free | grep Mem | tr -s " " | cut -d" " -f2,3,4) etc. (ver Servidor)
+		- Avisar ao servidor periodicamente que está ligado (UDP)
+			- Emviar Informações estáticas somente uma vez
+			- Enviar informações mutáveis periodicamente
+		- Coletar Lista de Softwares:
+			- (ideia) # ps aux | grep victor | tr -s " " | cut -d" " -f2,11 | grep -v "/usr/lib" | sort | uniq
+		- Bloqueio de programas
+			- usar o kill -18 e kill -19, para parar e continuar, respectivamente
+		- Receber aviso do servidor e exibir com o notify-send ou outro de acordo com a configuração
+	
+	Atualização:
+		- Posso criar um script (Linux) para verificar se existe um novo arquivo Cliente antes de iniciar o cliente. Esse script deve substituir os clientes.
+
+###
+#    Rede
+###
+	
+	Protocolo Porta UDP
+	 - ALIVE : Mensagem para avisar que o PC está ligado
+	   - ALIVE + Nome da Máquina + Informações
+
+###
+#    Arquivos
+###
+	
+	server.conf
+		- no cliente criar um arquivo de configuracao no estilo key=value com alguns campos (host=PC-01, discovery=on, server_ip=192.168.0.80, server_port=60000, interval_annouce=5, local_port=61000). Usar expressoes regulares para ler arquivo e retornar um objeto ou dicionario. Melhor um objeto, pois o mesmo pode permitir alterar alguma configuração
+	client.conf
+
+Baixar Arquivo, enviar arquivo
+
+ligar máquinas com wakeonlan

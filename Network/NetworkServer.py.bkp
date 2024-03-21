@@ -1,0 +1,164 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+import socketserver
+import queue
+import socket
+import struct
+import pickle
+from io import BytesIO
+
+import Network.Protocol as Protocol
+
+
+#so basta uma classe, ja que vou instanciar 
+#pensando bem nao sei se faz muito sentido bloquear diretamente na classe
+#talvez de sim se eu implementar o with <<<<-----
+
+# dá certo sim... é so implementar o with. Ai no __enter__ ativo uma flag para liberar acesso a var e travar
+# implemento o __getitem__ para acessar o elemento __data e __setitem__
+# e o __exit__ libera a trava e desativa a flag
+# nesse caso, pra funcionar desse jeito, acho que __data tem que ser uma variável de classe, bem como a trava, ja que
+# serao compartilhados
+# caso tente acessar um elemento sem a trava (e sem a flag) eh so lançar uma excecao ou um assert
+
+# criar um metodo isBlocked() para verificar se esta livre, se estiver bloqueia, se não estiver passa direto (verificar!)
+class _ProtectedSharedMem:#implementar os lockers. qualquer coisa posso criar uma classe e liberar o objeto global
+	
+	def __init__(self):
+		self.ready = threading.Event()
+		self.__data = {}
+	
+	#@property
+	#def ready(self):
+	#	return self.__ready
+	
+	#@ready.setter
+	#def ready(self, ready):
+	#	# o ideal seria deixar essa operacao atomica... acho que em C eu tinha como fazer isso
+	#	
+	#	# acho que em python eh com condition objects <<<<<< entao simplifica toda essa classe <<<<< SERÁ?	
+	#	# ver tbm classe Event que parece fazer o que eu queria fazer aqui
+	#	self.__ready = ready
+	
+	@property
+	def data(self):
+		#locker - mas mesmo assim pode dar problema já que __data eh mutavel e retorno a referencia
+		return self.__data
+		#locker - ajustar implementacao pro locker ser liberado!
+	
+
+
+# vou precisar de uma entrada e saida (send en recv) para cada bloco de info (discovery, info, control)
+Send = _ProtectedSharedMem()
+Recv = _ProtectedSharedMem()
+
+
+## >>>>>>>>> RESOLVIDO, usar a classe queue.Queue(). Uma para solicitar dados da rede e outra para receber.
+## >>> mas usando lockers a minha solucao ainda eh possível.
+
+class NetworkServerHandler:
+	
+	@staticmethod
+	def requestInfoPC():
+		Recv.data["info"] = {"lab": "Lab-{0:0>2}".format(Send.data["lab"]), "pc":Send.data["host"]} # apenas para teste, os dados serão outros (?)
+
+
+#criar classe ou funcao que organize os dados dos pcs
+
+_BUFFER	=	1024
+
+
+class DiscoveryHandler(threading.Thread):
+	
+	def __init__(self, data, address, server, *, daemon):
+		super().__init__(daemon=daemon)
+		
+		self.address 	= address 
+		self.data 		= data
+		self.handle = server
+	
+	def run(self):
+		#with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as handle:
+		handle = self.handle
+		#print("ThreadHandler")
+				
+		if self.data[:1] == Protocol.Discovery.DISCOVERY:
+			print("Servidor Descoberto")
+			handle.sendto(Protocol.Discovery.ACK, self.address)
+		
+		elif self.data[:1] == Protocol.Info.INFO:
+			print("Recebendo info")
+			size = int(struct.unpack("!I",self.data[1:5])[0])
+			info = None
+			sizet = size + 4 + 1
+			
+			#print(sizet,size,self.data[1:5]) #OK
+			
+			if sizet <= _BUFFER:
+				info = pickle.loads(self.data[5:])
+			else:
+				resto = sizet - _BUFFER
+				infob = bytearray()
+				infob.extend(self.data[5:])
+				#print("{0} {1}".format(resto,infob)) # OK
+				while resto > 0:
+					infob.extend(handle.recv(_BUFFER if resto > _BUFFER else resto))
+					#print("Entrei...")
+					#infobt = handle.recv(_BUFFER if resto > _BUFFER else resto)
+					#infob.extend(infobt)
+					#print(str(infobt))
+					resto -= _BUFFER
+				info = pickle.loads(infob)
+			
+			# pode deixar pra transformar em BytesIO so na interface, na hora de carregar a imagem
+			# acho que vou ter que criar um wrapper (class BytesIOp(BytesIO): metodo open???)
+			#fscreenshot_mini = BytesIO(info["screenshot_mini"])
+			
+			handle.sendto(Protocol.Info.ACK, self.address)
+			
+			print(info["conf"])
+					
+					
+
+class Discovery(threading.Thread):
+		
+	def __init__(self, port, *, daemon):
+		super().__init__(daemon=daemon)
+		self.port	= port
+		self.ip		= "" #todas as interfaces
+	
+	def run(self):
+		
+		#voltar o with
+		server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # depois ver como fechar socket... resolver
+		server.bind((self.ip,self.port)) 
+		
+		#print(server)
+		
+		while True:
+			t = DiscoveryHandler(*server.recvfrom(_BUFFER), server, daemon=True)
+			t.start()
+			t.join() # descobri o problema... os threads compartilhando o socket disputam as msg e n dá certo
+			
+			# prox passo -> tentar descobrir como fazer com que dois clientes se comuniquem com o serv UDP
+			# tentar criar um novo socket no DiscoveryHandler como era antes e remover t.join() pra ver oq vai dar
+			
+			# solucao esta no firefox
+			# concluir implementacao do Discovery, que será em um thread separado
+			
+			# tenho que tratar um cliente so desde o Discovery
+			
+			# para cada discovery tenho que iniciar uma thread dedicada ao cliente
+				
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+
